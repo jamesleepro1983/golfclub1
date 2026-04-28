@@ -34,14 +34,28 @@ function App() {
     return isNaN(date.getTime()) ? null : date;
   };
 
+  // Handles both DD/MM/YYYY (Google Sheets) and YYYY-MM-DD (ISO) formats
+  const parseAnyDate = (value) => {
+    if (!value) return null;
+    // Try DD/MM/YYYY
+    const ddmmyyyy = value.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (ddmmyyyy) {
+      const [, day, month, year] = ddmmyyyy;
+      return new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+    }
+    // Try YYYY-MM-DD or any ISO-like string
+    const d = new Date(value);
+    return isNaN(d.getTime()) ? null : d;
+  };
+
   const initializeDateRange = (lookerData) => {
     if (!lookerData || lookerData.length === 0) return;
 
     const dates = lookerData
       .map(row => row.play_date)
       .filter(Boolean)
-      .map(d => new Date(d))
-      .filter(d => !isNaN(d.getTime()));
+      .map(d => parseAnyDate(d))
+      .filter(d => d !== null);
 
     if (dates.length === 0) return;
 
@@ -91,12 +105,15 @@ function App() {
     return rows.filter(row => {
       const value = getDateField(row);
       if (!value) return false;
-      const d = new Date(value);
-      if (isNaN(d.getTime())) return false;
-      if (fromDate && d < fromDate) return false;
-      if (toDateEnd && d > toDateEnd) return false;
+      const d = parseAnyDate(value);
+      if (!d) return false;
+      // Compare dates only (strip time from row date)
+      const rowDateOnly = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+      if (fromDate && rowDateOnly < new Date(fromDate.getFullYear(), fromDate.getMonth(), fromDate.getDate())) return false;
+      if (toDateEnd && rowDateOnly > new Date(toDateEnd.getFullYear(), toDateEnd.getMonth(), toDateEnd.getDate())) return false;
       return true;
     });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fromDate, toDateEnd]);
 
   const filteredLookerData = useMemo(
